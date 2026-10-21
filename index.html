@@ -547,7 +547,7 @@
             updateSyncStatus('connecting', 'กำลังเชื่อมต่อ Google Sheets...');
             loadWorkspaceFromSheet(true);
             if (syncTimer) clearInterval(syncTimer);
-            syncTimer = setInterval(() => loadWorkspaceFromSheet(false), 3000);
+            syncTimer = setInterval(() => loadWorkspaceFromSheet(false), 1500);
         }
 
         async function callRoomPulseApi(payload) {
