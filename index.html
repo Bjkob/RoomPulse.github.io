@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoomPulse Pro - Multi-Room Realtime Occupancy Counter</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Kanit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Kanit', 'Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glow': 'glow 2s infinite alternate',
+                    },
+                    keyframes: {
+                        glow: {
+                            '0%': { boxShadow: '0 0 15px rgba(239, 68, 68, 0.2)' },
+                            '100%': { boxShadow: '0 0 35px rgba(239, 68, 68, 0.7)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white bg-slate-950 text-slate-100">
+
+    <!-- ============================================== -->
+    <!-- MAIN APPLICATION CONTAINER                     -->
+    <!-- ============================================== -->
+    <div id="app" class="flex-1 flex flex-col min-h-screen">
+        
+        <!-- HEADER / NAVIGATION BAR -->
+        <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 shadow-xl">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+                
+                <!-- Logo & Workspace Title -->
+                <div class="flex items-center space-x-2 sm:space-x-3 cursor-pointer" onclick="switchView('dashboard')">
+                    <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                        <i class="fa-solid fa-users-between-lines text-white text-base sm:text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-sm sm:text-base font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent leading-tight flex items-center gap-1.5">
+                            <span>RoomPulse</span>
+                            <span class="text-[10px] font-semibold text-indigo-400 border border-indigo-500/30 px-1.5 py-0.2 rounded-full hidden sm:inline">Sync</span>
+                        </h1>
+                        <!-- Live Real-time Connection Badge -->
+                        <div class="flex items-center space-x-1.5 mt-0.5">
+                            <span id="syncLed" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="syncText" class="text-[10px] text-slate-400 font-medium truncate max-w-[120px] sm:max-w-none">เชื่อมต่อเรียลไทม์</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REALTIME SESSION SHARE BUTTON & ROOM QUANTITY MANAGER -->
+                <div class="flex items-center space-x-1.5 sm:space-x-3">
+                    
+                    <!-- Session Code & Share Modal Trigger -->
+                    <button onclick="openShareModal()" class="flex items-center space-x-1.5 bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 px-2.5 sm:px-3 py-1.5 rounded-xl transition text-xs font-semibold shadow-md shadow-indigo-950/50">
+                        <i class="fa-solid fa-signal text-indigo-400 animate-pulse"></i>
+                        <span class="hidden sm:inline">เซสชัน:</span>
+                        <span id="headerSessionCode" class="font-mono font-bold text-white uppercase tracking-wider">ROOM-8888</span>
+                        <i class="fa-solid fa-qrcode ml-1 text-indigo-300"></i>
+                    </button>
+
+                    <!-- Quick Room Quantity Controller (+ / - Rooms) -->
+                    <div class="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-xl p-1 shadow-inner">
+                        <button onclick="quickRemoveLastRoom()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-700/60 hover:bg-rose-600/30 hover:border-rose-500/50 text-slate-300 hover:text-rose-400 transition flex items-center justify-center font-bold text-xs" title="ลดจำนวนห้อง (ลบห้องสุดท้าย)">
+                            <i class="fa-solid fa-minus"></i>
+                        </button>
+                        <span id="headerRoomCount" class="px-2 sm:px-3 font-bold text-indigo-300 text-xs sm:text-sm min-w-[1.8rem] text-center">0</span>
+                        <button onclick="quickAddRoom()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center justify-center font-bold text-xs shadow-md shadow-indigo-600/30" title="เพิ่มห้องใหม่แบบเร็ว (+1 ห้อง)">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Nav Links -->
+                    <div class="flex items-center space-x-1 bg-slate-800/50 p-1 rounded-xl border border-slate-800">
+                        <button onclick="switchView('dashboard')" id="navDashBtn" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition bg-indigo-600 text-white shadow-sm">
+                            <i class="fa-solid fa-border-all sm:mr-1"></i><span class="hidden md:inline">แดชบอร์ด</span>
+                        </button>
+                        <button onclick="switchView('tv')" id="navTvBtn" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+                            <i class="fa-solid fa-tv sm:mr-1"></i><span class="hidden md:inline">จอทีวีรวม</span>
+                        </button>
+                        <button onclick="switchView('log')" id="navLogBtn" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+                            <i class="fa-solid fa-clock-rotate-left sm:mr-1"></i><span class="hidden md:inline">ประวัติ</span>
+                        </button>
+                    </div>
+
+                    <!-- Mute / Sound Toggle -->
+                    <button onclick="toggleAudio()" id="soundToggleBtn" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 flex items-center justify-center transition" title="เปิด/ปิดเสียงการทำงาน">
+                        <i class="fa-solid fa-volume-high text-xs sm:text-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
+            
+            <!-- ============================================== -->
+            <!-- VIEW 1: DASHBOARD VIEW                         -->
+            <!-- ============================================== -->
+            <div id="dashboardView" class="space-y-6">
+                
+                <!-- OVERVIEW KPI SUMMARY STATS -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    
+                    <!-- KPI 1: Total Rooms -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex items-center space-x-3 shadow-lg relative overflow-hidden group">
+                        <div class="p-2.5 sm:p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-lg sm:text-xl group-hover:scale-110 transition duration-300">
+                            <i class="fa-solid fa-door-open"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">ห้องทั้งหมด</p>
+                            <h3 id="kpiTotalRooms" class="text-lg sm:text-2xl font-bold text-white">0</h3>
+                            <p class="text-[10px] text-indigo-400 mt-0.5">ในระบบเรียลไทม์</p>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Total People Inside -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex items-center space-x-3 shadow-lg relative overflow-hidden group">
+                        <div class="p-2.5 sm:p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-lg sm:text-xl group-hover:scale-110 transition duration-300">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">คนในห้องรวม</p>
+                            <h3 id="kpiTotalPeople" class="text-lg sm:text-2xl font-bold text-white">0</h3>
+                            <p class="text-[10px] text-emerald-400 mt-0.5"><span id="kpiTotalCapacity">/ 0</span> ความจุรวม</p>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Total Space Available -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex items-center space-x-3 shadow-lg relative overflow-hidden group">
+                        <div class="p-2.5 sm:p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-lg sm:text-xl group-hover:scale-110 transition duration-300">
+                            <i class="fa-solid fa-user-plus"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">ที่ว่างรวมเข้าได้อีก</p>
+                            <h3 id="kpiTotalAvailable" class="text-lg sm:text-2xl font-bold text-white">0</h3>
+                            <p class="text-[10px] text-cyan-400 mt-0.5">คนทั่วทั้งอาคาร</p>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Overall Occupancy Rate -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex items-center space-x-3 shadow-lg relative overflow-hidden group">
+                        <div class="p-2.5 sm:p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-lg sm:text-xl group-hover:scale-110 transition duration-300">
+                            <i class="fa-solid fa-chart-pie"></i>
+                        </div>
+                        <div class="w-full">
+                            <p class="text-[11px] sm:text-xs text-slate-400 font-medium">ความหนาแน่นรวม</p>
+                            <h3 id="kpiOverallDensity" class="text-lg sm:text-2xl font-bold text-white">0%</h3>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                <div id="kpiOverallProgressBar" class="bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEARCH, FILTER & TOOLBAR -->
+                <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900/60 p-3 sm:p-3.5 rounded-2xl border border-slate-800/80">
+                    
+                    <!-- Search Input -->
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs sm:text-sm"></i>
+                        <input type="text" id="searchInput" oninput="filterRooms()" placeholder="ค้นหาตามชื่อห้อง หรือ สถานที่..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition">
+                    </div>
+
+                    <!-- Status Filters -->
+                    <div class="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
+                        <button onclick="setFilter('all')" id="filterAllBtn" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white transition whitespace-nowrap">
+                            ทั้งหมด (<span id="countAll">0</span>)
+                        </button>
+                        <button onclick="setFilter('available')" id="filterAvailableBtn" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition whitespace-nowrap">
+                            <i class="fa-solid fa-circle text-[8px] text-emerald-400 mr-1"></i>มีที่ว่าง (<span id="countAvailable">0</span>)
+                        </button>
+                        <button onclick="setFilter('full')" id="filterFullBtn" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition whitespace-nowrap">
+                            <i class="fa-solid fa-circle text-[8px] text-rose-500 mr-1"></i>ห้องเต็ม/ล้น (<span id="countFull">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- Action: Add Custom Room Button -->
+                    <button onclick="openAddRoomModal()" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/20 transition flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>เพิ่มห้องแบบกำหนดเอง</span>
+                    </button>
+                </div>
+
+                <!-- ROOM CARDS GRID -->
+                <div id="roomCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                    <!-- Cards will be populated dynamically -->
+                </div>
+
+                <!-- Empty State Message -->
+                <div id="emptyState" class="hidden text-center py-16 bg-slate-900/40 border border-slate-800/80 rounded-3xl p-8 space-y-4">
+                    <div class="w-16 h-16 bg-slate-800 text-slate-500 rounded-3xl flex items-center justify-center mx-auto text-2xl">
+                        <i class="fa-solid fa-door-closed"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-300">ไม่พบห้องตามเงื่อนไขที่ระบุ</h3>
+                        <p class="text-xs text-slate-500 mt-1">กดปุ่มด้านล่างเพื่อเพิ่มห้องใหม่ หรือลองเปลี่ยนคำค้นหา</p>
+                    </div>
+                    <button onclick="quickAddRoom()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-lg hover:bg-indigo-500 transition">
+                        <i class="fa-solid fa-plus mr-1"></i> เพิ่มห้องใหม่ทันที
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VIEW 2: SINGLE ROOM DETAIL VIEW                -->
+            <!-- ============================================== -->
+            <div id="detailView" class="hidden space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                    <button onclick="switchView('dashboard')" class="flex items-center space-x-2 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        <span>กลับหน้าแดชบอร์ด</span>
+                    </button>
+                    
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400 hidden sm:inline">เลือกห้อง:</label>
+                        <select id="detailRoomSelect" onchange="switchDetailRoom(this.value)" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+                            <!-- Dynamic options -->
+                        </select>
+                    </div>
+                </div>
+
+                <div id="detailCardContainer" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VIEW 3: MULTI-ROOM TV SIGNAGE VIEW             -->
+            <!-- ============================================== -->
+            <div id="tvView" class="hidden space-y-6">
+                <div class="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+                        <h2 class="text-base sm:text-lg font-bold text-white tracking-wide">ป้ายดิจิทัลแสดงสถานะอาคารส่วนกลาง (Central TV Signage)</h2>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-right">
+                            <p id="tvClockDate" class="text-xs text-slate-400 font-medium">--/--/----</p>
+                            <p id="tvClockTime" class="text-lg sm:text-xl font-extrabold text-indigo-400 tracking-wider">00:00:00</p>
+                        </div>
+                        <button onclick="switchView('dashboard')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
+                            <i class="fa-solid fa-xmark mr-1"></i> ปิดจอทีวี
+                        </button>
+                    </div>
+                </div>
+
+                <div id="tvCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VIEW 4: ACTIVITY LOG VIEW                      -->
+            <!-- ============================================== -->
+            <div id="logView" class="hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                    <div>
+                        <h2 class="text-base font-bold text-white">ประวัติกิจกรรมการเข้า-ออกห้อง (Real-time Log)</h2>
+                        <p class="text-xs text-slate-400">บันทึกการปรับปรุงจำนวนคนและห้องที่ซิงค์ผ่านระบบเรียลไทม์</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="exportLogToCSV()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-lg shadow-emerald-950/50">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span>ส่งออก CSV</span>
+                        </button>
+                        <button onclick="clearActivityLog()" class="px-3.5 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border border-slate-700 text-xs font-bold rounded-xl transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i> ล้างประวัติ
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800 uppercase text-[10px] tracking-wider">
+                                <tr>
+                                    <th class="px-4 py-3">เวลา</th>
+                                    <th class="px-4 py-3">ห้อง</th>
+                                    <th class="px-4 py-3">เหตุการณ์</th>
+                                    <th class="px-4 py-3 text-right">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logTableBody" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="emptyLogState" class="hidden p-8 text-center text-slate-500 text-xs">
+                        ยังไม่มีประวัติกิจกรรมในระบบ
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VIEW 5: SINGLE ROOM FULLSCREEN KIOSK VIEW      -->
+            <!-- ============================================== -->
+            <div id="kioskView" class="hidden fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between p-6 md:p-12">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-4 h-4 rounded-full bg-indigo-500 animate-ping"></div>
+                        <span id="kioskRoomLocation" class="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-widest">--</span>
+                    </div>
+                    <button onclick="switchView('dashboard')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-2xl text-xs font-bold transition flex items-center space-x-2">
+                        <i class="fa-solid fa-xmark"></i>
+                        <span>ออกจากโหมด Kiosk</span>
+                    </button>
+                </div>
+
+                <div id="kioskMainDisplay" class="flex-1 flex flex-col items-center justify-center text-center space-y-8 my-auto">
+                    <!-- Dynamic content -->
+                </div>
+
+                <div class="flex items-center justify-between border-t border-slate-800/80 pt-6">
+                    <div class="text-left">
+                        <p class="text-xs text-slate-500">สถานะดิจิทัลหน้าห้อง (Real-time)</p>
+                        <p id="kioskClock" class="text-sm font-bold text-slate-300">00:00:00</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="kioskBtnMinus" class="w-16 h-16 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-2xl font-bold flex items-center justify-center border border-slate-700 transition active:scale-95 shadow-xl">
+                            -1
+                        </button>
+                        <button id="kioskBtnPlus" class="w-20 h-20 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-3xl font-extrabold flex items-center justify-center border border-indigo-400/30 transition active:scale-95 shadow-2xl shadow-indigo-600/50">
+                            +1
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- MODAL 1: REALTIME WORKSPACE SHARE & JOIN MODAL -->
+    <!-- ============================================== -->
+    <div id="shareModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-signal text-indigo-400"></i>
+                    <h3 class="text-base font-bold text-white">แชร์ & ซิงค์ข้ามอุปกรณ์ (Real-time)</h3>
+                </div>
+                <button onclick="closeShareModal()" class="text-slate-400 hover:text-white text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Current Session Display & QR Code -->
+            <div class="space-y-4 text-center">
+                <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <p class="text-xs text-slate-400 font-medium">สแกน QR Code นี้บนมือถืออีกเครื่องเพื่อควบคุมร่วมกัน:</p>
+                    
+                    <!-- QR Code Image -->
+                    <div class="flex justify-center">
+                        <img id="shareQrImg" src="" alt="QR Code Session" class="w-48 h-48 rounded-xl border-4 border-white shadow-lg bg-white p-1">
+                    </div>
+
+                    <div class="pt-2">
+                        <span class="text-[10px] text-slate-500 uppercase tracking-widest block">รหัสเซสชันปัจจุบัน</span>
+                        <span id="modalSessionCodeText" class="text-xl font-mono font-black text-indigo-400 tracking-wider">ROOM-8888</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons: Copy Link & Copy Code -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="copyShareLink()" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-lg shadow-indigo-600/30">
+                        <i class="fa-solid fa-link"></i>
+                        <span>คัดลอกลิงก์แชร์</span>
+                    </button>
+                    <button onclick="copySessionCode()" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-copy"></i>
+                        <span>คัดลอกรหัส</span>
+                    </button>
+                </div>
+
+                <!-- Join / Switch Session Form -->
+                <div class="pt-3 border-t border-slate-800 text-left space-y-2">
+                    <label class="block text-xs font-semibold text-slate-300">สลับ หรือ เข้าร่วมรหัสอาคารอื่น:</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="joinSessionInput" placeholder="เช่น ROOM-9999 หรือ EVENT-A" class="flex-1 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-white uppercase font-mono placeholder-slate-600 focus:outline-none">
+                        <button onclick="handleJoinSession()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition whitespace-nowrap">
+                            เข้าร่วม
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- MODAL 2: ADD / EDIT ROOM MODAL                 -->
+    <!-- ============================================== -->
+    <div id="roomModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 id="modalTitle" class="text-base font-bold text-white">เพิ่มห้องใหม่</h3>
+                <button onclick="closeRoomModal()" class="text-slate-400 hover:text-white text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="handleSaveRoom(event)" class="space-y-4">
+                <input type="hidden" id="formRoomId">
+                
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">ชื่อห้อง *</label>
+                    <input type="text" id="formRoomName" required placeholder="เช่น ห้องประชุมใหญ่ A, ห้องสมุด ชั้น 2" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">ชั้น / อาคาร / ตำแหน่ง</label>
+                    <input type="text" id="formRoomLocation" placeholder="เช่น ชั้น 3 อาคารนวัตกรรม" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">ความจุสูงสุด (คน) *</label>
+                        <input type="number" id="formRoomMax" min="1" max="9999" required value="50" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-bold text-indigo-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">จำนวนคนเริ่มต้น</label>
+                        <input type="number" id="formRoomCurrent" min="0" max="9999" value="0" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeRoomModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition">
+                        บันทึกข้อมูล
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- MODAL 3: CONFIRM DELETE ROOM MODAL             -->
+    <!-- ============================================== -->
+    <div id="deleteModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-5 shadow-2xl text-center">
+            <div class="w-12 h-12 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-xl border border-rose-500/30">
+                <i class="fa-solid fa-trash-can"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-white">ยืนยันการลบห้อง</h3>
+                <p id="deleteModalMessage" class="text-xs text-slate-400 mt-1">คุณต้องการลบห้องนี้ออกจากระบบใช่หรือไม่?</p>
+            </div>
+            <div class="flex items-center justify-center space-x-3 pt-2">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">
+                    ยกเลิก
+                </button>
+                <button onclick="executeDeleteRoom()" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-rose-950/50">
+                    ยืนยันลบห้อง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- ============================================== -->
+    <!-- GOOGLE SHEETS / GOOGLE APPS SCRIPT APPLICATION -->
+    <!-- ============================================== -->
+    <script>
+        // Google Sheets backend via Google Apps Script Web App
+        const defaultRooms = [
+            { id: 'room-1', name: 'ห้องประชุมใหญ่ A', location: 'ชั้น 1 อาคารเรียนรวม', currentOccupancy: 12, maxCapacity: 50 },
+            { id: 'room-2', name: 'ห้องเซมินาร์ B', location: 'ชั้น 2 อาคารอำนวยการ', currentOccupancy: 28, maxCapacity: 30 },
+            { id: 'room-3', name: 'ห้องสมุดโซนเงียบ', location: 'ชั้น 3 หอสมุดกลาง', currentOccupancy: 45, maxCapacity: 45 },
+            { id: 'room-4', name: 'ห้องคอมพิวเตอร์ 101', location: 'ชั้น 1 อาคารไอที', currentOccupancy: 5, maxCapacity: 40 }
+        ];
+
+        const state = {
+            currentSessionCode: getSessionCodeFromUrl(),
+            rooms: [],
+            currentFilter: 'all',
+            activeView: 'dashboard',
+            selectedRoomId: null,
+            audioEnabled: true,
+            logs: []
+        };
+
+        let audioCtx = null;
+        let roomToDeleteId = null;
+        let isRemoteUpdate = false;
+        let isLoadingFromSheet = false;
+        let lastRemoteFingerprint = '';
+        let syncTimer = null;
+        let saveTimer = null;
+
+        function getSessionCodeFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('session');
+            return code && code.trim() ? code.trim().toUpperCase() : 'ROOM-8888';
+        }
+
+        window.onload = function() {
+            loadFromLocalStorage();
+            updateLiveClocks();
+            setInterval(updateLiveClocks, 1000);
+            renderApp();
+            setupKeyboardShortcuts();
+            initGoogleSheets();
+        };
+
+        function initGoogleSheets() {
+            updateSyncStatus('connecting', 'กำลังเชื่อมต่อ Google Sheets...');
+            loadWorkspaceFromSheet(true);
+            if (syncTimer) clearInterval(syncTimer);
+            syncTimer = setInterval(() => loadWorkspaceFromSheet(false), 3000);
+        }
+
+        async function callRoomPulseApi(payload) {
+            const response = await fetch('/api/workspace', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            let data;
+            try { data = await response.json(); }
+            catch (_) { throw new Error('เซิร์ฟเวอร์ส่งข้อมูลกลับมาไม่ถูกต้อง'); }
+            if (!response.ok || data.error) throw new Error(data.error || 'เรียก API ไม่สำเร็จ');
+            return data;
+        }
+
+        async function loadWorkspaceFromSheet(isFirstLoad) {
+            if (isLoadingFromSheet) return;
+            isLoadingFromSheet = true;
+            try {
+                const data = await callRoomPulseApi({
+                    action: 'get',
+                    sessionCode: state.currentSessionCode
+                });
+                if (!data || !Array.isArray(data.rooms) || !Array.isArray(data.logs)) {
+                    updateSyncStatus('error', 'รูปแบบข้อมูลจากชีตไม่ถูกต้อง');
+                    return;
+                }
+                const fingerprint = JSON.stringify({rooms: data.rooms, logs: data.logs});
+                if (fingerprint !== lastRemoteFingerprint) {
+                    isRemoteUpdate = true;
+                    state.rooms = data.rooms;
+                    state.logs = data.logs;
+                    lastRemoteFingerprint = fingerprint;
+                    if (!state.selectedRoomId || !state.rooms.some(r => r.id === state.selectedRoomId)) {
+                        state.selectedRoomId = state.rooms.length ? state.rooms[0].id : null;
+                    }
+                    saveToLocalStorage();
+                    renderApp();
+                    isRemoteUpdate = false;
+                }
+                updateSyncStatus('online', 'เชื่อมต่อ Google Sheets');
+                if (isFirstLoad && data.rooms.length === 0) {
+                    state.rooms = defaultRooms.map(r => ({...r}));
+                    state.logs = [];
+                    renderApp();
+                    saveWorkspaceToGoogleSheets();
+                }
+            } catch (err) {
+                console.error('Google Sheets read error:', err);
+                updateSyncStatus('error', 'เชื่อมต่อ Google Sheets ไม่สำเร็จ');
+                if (isFirstLoad) showToast('เชื่อมต่อ Google Sheets ไม่สำเร็จ ตรวจสอบ URL ของ Apps Script และ Environment Variables บน Vercel', 'error');
+            } finally {
+                isLoadingFromSheet = false;
+            }
+        }
+
+        function saveWorkspaceToGoogleSheets() {
+            saveToLocalStorage();
+            if (isRemoteUpdate) return;
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(async () => {
+                updateSyncStatus('syncing', 'กำลังบันทึกลง Google Sheets...');
+                try {
+                    const result = await callRoomPulseApi({
+                        action: 'save',
+                        sessionCode: state.currentSessionCode,
+                        rooms: state.rooms,
+                        logs: state.logs.slice(0, 100)
+                    });
+                    if (result && result.ok) {
+                        lastRemoteFingerprint = JSON.stringify({rooms: result.rooms, logs: result.logs});
+                        updateSyncStatus('online', 'บันทึกลง Google Sheets แล้ว');
+                    } else {
+                        throw new Error('บันทึกข้อมูลไม่สำเร็จ');
+                    }
+                } catch (err) {
+                    console.error('Google Sheets write error:', err);
+                    updateSyncStatus('error', 'บันทึกข้อมูลไม่สำเร็จ');
+                    showToast('บันทึกไม่สำเร็จ: ' + (err && err.message ? err.message : 'ตรวจสอบการตั้งค่า API'), 'error');
+                }
+            }, 250);
+        }
+
+        // Update UI LED Status indicator
+        function updateSyncStatus(status, text) {
+            const led = document.getElementById('syncLed');
+            const statusText = document.getElementById('syncText');
+            
+            if (!led || !statusText) return;
+
+            statusText.textContent = text;
+
+            if (status === 'online') {
+                led.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+            } else if (status === 'syncing' || status === 'connecting') {
+                led.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+            } else {
+                led.className = "w-2 h-2 rounded-full bg-rose-500";
+            }
+        }
+
+        // Local Storage Sync Backup
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem(`room_pulse_${state.currentSessionCode}_rooms`, JSON.stringify(state.rooms));
+                localStorage.setItem(`room_pulse_${state.currentSessionCode}_logs`, JSON.stringify(state.logs));
+            } catch(e) {}
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedRooms = localStorage.getItem(`room_pulse_${state.currentSessionCode}_rooms`);
+                const savedLogs = localStorage.getItem(`room_pulse_${state.currentSessionCode}_logs`);
+                if (savedRooms) state.rooms = JSON.parse(savedRooms);
+                else state.rooms = defaultRooms;
+                if (savedLogs) state.logs = JSON.parse(savedLogs);
+            } catch(e) {
+                state.rooms = defaultRooms;
+            }
+            if (state.rooms.length > 0 && !state.selectedRoomId) {
+                state.selectedRoomId = state.rooms[0].id;
+            }
+        }
+
+        // Central Render Engine
+        function renderApp() {
+            document.getElementById('headerSessionCode').textContent = state.currentSessionCode;
+            updateHeaderAndKPIs();
+            renderDashboardCards();
+            renderDetailView();
+            renderTVView();
+            renderKioskView();
+            renderLogsTable();
+        }
+
+        function updateHeaderAndKPIs() {
+            const totalRooms = state.rooms.length;
+            const totalPeople = state.rooms.reduce((acc, r) => acc + r.currentOccupancy, 0);
+            const totalCapacity = state.rooms.reduce((acc, r) => acc + r.maxCapacity, 0);
+            const totalAvailable = Math.max(0, totalCapacity - totalPeople);
+            const overallDensity = totalCapacity > 0 ? Math.round((totalPeople / totalCapacity) * 100) : 0;
+
+            document.getElementById('headerRoomCount').textContent = totalRooms;
+            document.getElementById('kpiTotalRooms').textContent = totalRooms;
+            document.getElementById('kpiTotalPeople').textContent = totalPeople;
+            document.getElementById('kpiTotalCapacity').textContent = `/ ${totalCapacity}`;
+            document.getElementById('kpiTotalAvailable').textContent = totalAvailable;
+            document.getElementById('kpiOverallDensity').textContent = `${overallDensity}%`;
+            
+            const progressBar = document.getElementById('kpiOverallProgressBar');
+            progressBar.style.width = `${Math.min(100, overallDensity)}%`;
+
+            const countAvailable = state.rooms.filter(r => r.currentOccupancy < r.maxCapacity).length;
+            const countFull = state.rooms.filter(r => r.currentOccupancy >= r.maxCapacity).length;
+
+            document.getElementById('countAll').textContent = totalRooms;
+            document.getElementById('countAvailable').textContent = countAvailable;
+            document.getElementById('countFull').textContent = countFull;
+        }
+
+        function renderDashboardCards() {
+            const grid = document.getElementById('roomCardsGrid');
+            const emptyState = document.getElementById('emptyState');
+            grid.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            let filtered = state.rooms.filter(room => {
+                const matchesSearch = room.name.toLowerCase().includes(searchTerm) || (room.location && room.location.toLowerCase().includes(searchTerm));
+                if (state.currentFilter === 'available') return matchesSearch && room.currentOccupancy < room.maxCapacity;
+                if (state.currentFilter === 'full') return matchesSearch && room.currentOccupancy >= room.maxCapacity;
+                return matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                grid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            grid.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            filtered.forEach(room => {
+                const available = room.maxCapacity - room.currentOccupancy;
+                const density = Math.round((room.currentOccupancy / room.maxCapacity) * 100);
+                const isFull = room.currentOccupancy >= room.maxCapacity;
+                const isNearFull = density >= 85 && !isFull;
+
+                let statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>ว่าง</span>`;
+                let ringColor = 'stroke-emerald-500';
+                let progressBg = 'bg-emerald-500';
+                let alertCardBorder = 'border-slate-800';
+
+                if (isFull) {
+                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>เต็ม</span>`;
+                    ringColor = 'stroke-rose-500';
+                    progressBg = 'bg-rose-500';
+                    alertCardBorder = 'border-rose-500/40 ring-1 ring-rose-500/20';
+                } else if (isNearFull) {
+                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>ใกล้เต็ม</span>`;
+                    ringColor = 'stroke-amber-500';
+                    progressBg = 'bg-amber-500';
+                }
+
+                const radius = 28;
+                const circumference = 2 * Math.PI * radius;
+                const strokeDashoffset = circumference - (Math.min(density, 100) / 100) * circumference;
+
+                const card = document.createElement('div');
+                card.className = `bg-slate-900 ${alertCardBorder} rounded-3xl p-4 sm:p-5 shadow-xl hover:shadow-2xl transition duration-300 flex flex-col justify-between relative group`;
+                
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider block truncate">${room.location || 'ไม่ระบุสถานที่'}</span>
+                            <h3 class="text-base font-bold text-white truncate cursor-pointer hover:text-indigo-400 transition" onclick="switchView('detail', '${room.id}')">${room.name}</h3>
+                        </div>
+                        <div>${statusBadge}</div>
+                    </div>
+
+                    <div class="grid grid-cols-12 gap-2 items-center py-2">
+                        <div class="col-span-4 flex items-center justify-center relative">
+                            <svg class="w-20 h-20 transform -rotate-90">
+                                <circle cx="40" cy="40" r="${radius}" stroke="currentColor" stroke-width="6" class="text-slate-800" fill="transparent" />
+                                <circle cx="40" cy="40" r="${radius}" stroke="currentColor" stroke-width="6" class="${ringColor} transition-all duration-500" fill="transparent" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" stroke-linecap="round" />
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span class="text-sm font-extrabold text-white">${density}%</span>
+                                <span class="text-[9px] text-slate-400">ความแน่น</span>
+                            </div>
+                        </div>
+
+                        <div class="col-span-8 space-y-1 pl-1">
+                            <div class="flex items-baseline space-x-1.5">
+                                <span class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">${room.currentOccupancy}</span>
+                                <span class="text-xs text-slate-400 font-medium">/ ${room.maxCapacity} คน</span>
+                            </div>
+
+                            <p class="text-xs ${available <= 0 ? 'text-rose-400 font-semibold' : 'text-slate-300'}">
+                                ${available <= 0 ? '❌ ไม่มีที่ว่างเหลือ' : `✨ เหลือเข้าได้อีก <strong class="text-emerald-400 font-bold">${available}</strong> คน`}
+                            </p>
+
+                            <!-- Quick Max Capacity Adjuster (-5, -1, +1, +5) -->
+                            <div class="flex items-center space-x-1 pt-1">
+                                <span class="text-[10px] text-slate-500">ปรับจุ:</span>
+                                <button onclick="adjustMaxCapacity('${room.id}', -5)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center justify-center font-bold" title="ลดความจุ 5">-5</button>
+                                <button onclick="adjustMaxCapacity('${room.id}', -1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center justify-center font-bold" title="ลดความจุ 1">-1</button>
+                                <button onclick="adjustMaxCapacity('${room.id}', 1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center justify-center font-bold" title="เพิ่มความจุ 1">+1</button>
+                                <button onclick="adjustMaxCapacity('${room.id}', 5)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center justify-center font-bold" title="เพิ่มความจุ 5">+5</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden my-2.5">
+                        <div class="${progressBg} h-full rounded-full transition-all duration-500" style="width: ${Math.min(100, density)}%"></div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-800/80">
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="changeOccupancy('${room.id}', 1)" class="p-2 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition flex items-center space-x-1 active:scale-95" title="คนเข้า (+1)">
+                                <i class="fa-solid fa-user-plus text-[10px]"></i>
+                                <span>เข้า (+1)</span>
+                            </button>
+                            <button onclick="changeOccupancy('${room.id}', -1)" class="p-2 px-3 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition flex items-center space-x-1 active:scale-95" title="คนออก (-1)">
+                                <i class="fa-solid fa-user-minus text-[10px]"></i>
+                                <span>ออก (-1)</span>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center space-x-1">
+                            <button onclick="openSingleKioskView('${room.id}')" class="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition" title="เปิดโหมดป้ายดิจิทัล">
+                                <i class="fa-solid fa-expand text-xs"></i>
+                            </button>
+                            <button onclick="openEditRoomModal('${room.id}')" class="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition" title="แก้ไขห้อง">
+                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                            </button>
+                            <button onclick="confirmDeleteRoom('${room.id}')" class="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition" title="ลบห้องนี้">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        // Room Controls Logic
+        function quickAddRoom() {
+            const nextNum = state.rooms.length + 1;
+            const newRoom = {
+                id: 'room-' + Date.now(),
+                name: `ห้องที่ ${nextNum}`,
+                location: 'ชั้น 1 อาคารส่วนกลาง',
+                currentOccupancy: 0,
+                maxCapacity: 50
+            };
+            state.rooms.push(newRoom);
+            logActivity(newRoom.id, 'เพิ่มห้องใหม่', `สร้าง ${newRoom.name} ความจุ ${newRoom.maxCapacity} คน`);
+            showToast(`เพิ่ม ${newRoom.name} เรียบร้อย`, 'success');
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        function quickRemoveLastRoom() {
+            if (state.rooms.length === 0) {
+                showToast('ไม่มีห้องในระบบให้ลบ', 'warning');
+                return;
+            }
+            const lastRoom = state.rooms[state.rooms.length - 1];
+            confirmDeleteRoom(lastRoom.id);
+        }
+
+        function adjustMaxCapacity(roomId, delta) {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (!room) return;
+
+            const newMax = room.maxCapacity + delta;
+            if (newMax < 1) {
+                showToast('ความจุสูงสุดต้องไม่น้อยกว่า 1 คน', 'warning');
+                return;
+            }
+            room.maxCapacity = newMax;
+            logActivity(room.id, 'ปรับความจุสูงสุด', `เปลี่ยนความจุ ${room.name} เป็น ${newMax} คน`);
+            showToast(`ปรับความจุ ${room.name} เป็น ${newMax} คน`, 'info');
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        function changeOccupancy(roomId, delta) {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (!room) return;
+
+            const oldVal = room.currentOccupancy;
+            const newVal = oldVal + delta;
+
+            if (newVal < 0) {
+                showToast('จำนวนคนไม่สามารถติดลบได้', 'warning');
+                return;
+            }
+
+            room.currentOccupancy = newVal;
+
+            if (delta > 0) {
+                if (newVal >= room.maxCapacity) {
+                    playSound('full');
+                    showToast(`⚠️ ${room.name} เต็มแล้ว!`, 'error');
+                } else {
+                    playSound('in');
+                }
+            } else {
+                playSound('out');
+            }
+
+            logActivity(room.id, delta > 0 ? 'คนเข้าห้อง' : 'คนออกห้อง', `${delta > 0 ? '+' : ''}${delta} คน (${newVal}/${room.maxCapacity})`);
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        function resetOccupancy(roomId) {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (!room) return;
+            room.currentOccupancy = 0;
+            logActivity(room.id, 'รีเซ็ตจำนวนคน', 'รีเซ็ตเป็น 0 คน');
+            showToast(`รีเซ็ตจำนวนคนใน ${room.name} เป็น 0`, 'info');
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        // Render Views
+        function renderDetailView() {
+            const select = document.getElementById('detailRoomSelect');
+            select.innerHTML = state.rooms.map(r => `<option value="${r.id}" ${r.id === state.selectedRoomId ? 'selected' : ''}>${r.name}</option>`).join('');
+
+            const room = state.rooms.find(r => r.id === state.selectedRoomId);
+            const container = document.getElementById('detailCardContainer');
+
+            if (!room) {
+                container.innerHTML = `<p class="text-center text-slate-500 py-10">กรุณาเลือกห้อง</p>`;
+                return;
+            }
+
+            const available = room.maxCapacity - room.currentOccupancy;
+            const density = Math.round((room.currentOccupancy / room.maxCapacity) * 100);
+
+            container.innerHTML = `
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+                    <div>
+                        <span class="text-xs font-semibold text-indigo-400 uppercase tracking-widest block mb-1">${room.location || 'สถานที่ทั่วไป'}</span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-white">${room.name}</h2>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="openSingleKioskView('${room.id}')" class="px-3.5 py-2 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 rounded-xl text-xs font-bold transition flex items-center space-x-2">
+                            <i class="fa-solid fa-expand"></i>
+                            <span>ป้ายดิจิทัลหน้าห้อง</span>
+                        </button>
+                        <button onclick="openEditRoomModal('${room.id}')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 my-8">
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-center">
+                        <p class="text-xs text-slate-400">จำนวนคนปัจจุบัน</p>
+                        <p class="text-3xl sm:text-4xl font-extrabold text-white mt-1">${room.currentOccupancy}</p>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-center">
+                        <p class="text-xs text-slate-400">ความจุสูงสุด</p>
+                        <p class="text-3xl sm:text-4xl font-extrabold text-indigo-400 mt-1">${room.maxCapacity}</p>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-center">
+                        <p class="text-xs text-slate-400">สามารถเข้าได้อีก</p>
+                        <p class="text-3xl sm:text-4xl font-extrabold ${available <= 0 ? 'text-rose-400' : 'text-emerald-400'} mt-1">${Math.max(0, available)}</p>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-center">
+                        <p class="text-xs text-slate-400">ความหนาแน่น</p>
+                        <p class="text-3xl sm:text-4xl font-extrabold text-amber-400 mt-1">${density}%</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button onclick="changeOccupancy('${room.id}', 1)" class="py-6 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-2xl font-extrabold text-xl shadow-xl shadow-emerald-950/50 transition active:scale-95 flex items-center justify-center space-x-3">
+                        <i class="fa-solid fa-user-plus text-2xl"></i>
+                        <span>+1 คนเข้าห้อง</span>
+                    </button>
+                    <button onclick="changeOccupancy('${room.id}', -1)" class="py-6 bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white rounded-2xl font-extrabold text-xl shadow-xl shadow-rose-950/50 transition active:scale-95 flex items-center justify-center space-x-3">
+                        <i class="fa-solid fa-user-minus text-2xl"></i>
+                        <span>-1 คนออกห้อง</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-center space-x-2 pt-6 border-t border-slate-800/80 mt-6">
+                    <button onclick="changeOccupancy('${room.id}', -5)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">-5 คน</button>
+                    <button onclick="changeOccupancy('${room.id}', 5)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">+5 คน</button>
+                    <button onclick="resetOccupancy('${room.id}')" class="px-4 py-2 bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 rounded-xl text-xs font-bold transition">
+                        <i class="fa-solid fa-rotate-left mr-1"></i> รีเซ็ตเป็น 0
+                    </button>
+                </div>
+            `;
+        }
+
+        function switchDetailRoom(id) {
+            state.selectedRoomId = id;
+            renderDetailView();
+        }
+
+        function renderTVView() {
+            const grid = document.getElementById('tvCardsGrid');
+            grid.innerHTML = '';
+
+            state.rooms.forEach(room => {
+                const available = room.maxCapacity - room.currentOccupancy;
+                const density = Math.round((room.currentOccupancy / room.maxCapacity) * 100);
+                const isFull = room.currentOccupancy >= room.maxCapacity;
+
+                const card = document.createElement('div');
+                card.className = `p-6 rounded-3xl border shadow-2xl flex flex-col justify-between ${isFull ? 'bg-rose-950/40 border-rose-500/50 animate-glow' : 'bg-slate-900 border-slate-800'}`;
+                
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-xl font-extrabold text-white">${room.name}</h3>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${isFull ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+                                ${isFull ? 'เต็มแล้ว' : 'เปิดรับเข้า'}
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400">${room.location || ''}</p>
+                    </div>
+
+                    <div class="my-6 text-center">
+                        <div class="text-5xl font-black text-white tracking-tight">${room.currentOccupancy} <span class="text-xl font-normal text-slate-400">/ ${room.maxCapacity}</span></div>
+                        <p class="text-xs font-semibold mt-2 ${available <= 0 ? 'text-rose-400' : 'text-emerald-400'}">
+                            ${available <= 0 ? 'งดเข้าชั่วคราว' : `ว่างเข้าได้อีก ${available} คน`}
+                        </p>
+                    </div>
+
+                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+                        <div class="h-full transition-all duration-500 ${isFull ? 'bg-rose-500' : 'bg-emerald-500'}" style="width: ${Math.min(100, density)}%"></div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openSingleKioskView(roomId) {
+            state.selectedRoomId = roomId;
+            switchView('kiosk');
+        }
+
+        function renderKioskView() {
+            const room = state.rooms.find(r => r.id === state.selectedRoomId);
+            if (!room) return;
+
+            document.getElementById('kioskRoomLocation').textContent = `${room.name} • ${room.location || ''}`;
+            
+            const display = document.getElementById('kioskMainDisplay');
+            const available = room.maxCapacity - room.currentOccupancy;
+            const isFull = room.currentOccupancy >= room.maxCapacity;
+
+            display.innerHTML = `
+                <div class="space-y-4">
+                    <div class="inline-block px-6 py-2 rounded-full text-sm font-extrabold uppercase tracking-widest ${isFull ? 'bg-rose-500 text-white animate-bounce shadow-lg shadow-rose-600/50' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'}">
+                        ${isFull ? '⛔ ห้องเต็มแล้ว (FULL)' : '✅ เชิญเข้าใช้งานได้ (WELCOME)'}
+                    </div>
+                    <h2 class="text-7xl md:text-9xl font-black text-white tracking-tight">${room.currentOccupancy} <span class="text-3xl text-slate-500 font-light">/ ${room.maxCapacity}</span></h2>
+                    <p class="text-xl md:text-2xl font-semibold ${isFull ? 'text-rose-400' : 'text-emerald-400'}">
+                        ${isFull ? 'กรุณารอด้านนอกสักครู่' : `สามารถเข้าได้อีก ${available} คน`}
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('kioskBtnPlus').onclick = () => changeOccupancy(room.id, 1);
+            document.getElementById('kioskBtnMinus').onclick = () => changeOccupancy(room.id, -1);
+        }
+
+        function renderLogsTable() {
+            const tbody = document.getElementById('logTableBody');
+            const emptyLog = document.getElementById('emptyLogState');
+            tbody.innerHTML = '';
+
+            if (state.logs.length === 0) {
+                tbody.classList.add('hidden');
+                emptyLog.classList.remove('hidden');
+                return;
+            }
+
+            tbody.classList.remove('hidden');
+            emptyLog.classList.add('hidden');
+
+            state.logs.slice(0, 50).forEach(log => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">${log.timestamp}</td>
+                    <td class="px-4 py-3 font-semibold text-indigo-300">${log.roomName}</td>
+                    <td class="px-4 py-3 text-slate-200">${log.action}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-300">${log.details}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function logActivity(roomId, action, details) {
+            const room = state.rooms.find(r => r.id === roomId);
+            const logItem = {
+                timestamp: new Date().toLocaleTimeString('th-TH', { hour12: false }),
+                roomName: room ? room.name : 'ส่วนกลาง',
+                action: action,
+                details: details
+            };
+            state.logs.unshift(logItem);
+            if (state.logs.length > 100) state.logs.pop();
+        }
+
+        function clearActivityLog() {
+            state.logs = [];
+            renderLogsTable();
+            saveWorkspaceToGoogleSheets();
+            showToast('ล้างประวัติกิจกรรมเรียบร้อย', 'info');
+        }
+
+        function exportLogToCSV() {
+            if (state.logs.length === 0) {
+                showToast('ไม่มีข้อมูลสำหรับส่งออก CSV', 'warning');
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "เวลา,ชื่อห้อง,กิจกรรม,รายละเอียด\n";
+
+            state.logs.forEach(row => {
+                csvContent += `"${row.timestamp}","${row.roomName}","${row.action}","${row.details}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `room_occupancy_log_${state.currentSessionCode}_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Share & Realtime Workspace Session Modals
+        function openShareModal() {
+            document.getElementById('modalSessionCodeText').textContent = state.currentSessionCode;
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?session=${state.currentSessionCode}`;
+            
+            // Set QR Code Image via API
+            const qrImg = document.getElementById('shareQrImg');
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(shareUrl)}`;
+
+            document.getElementById('shareModal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        function copyShareLink() {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?session=${state.currentSessionCode}`;
+            copyToClipboard(shareUrl);
+        }
+
+        function copySessionCode() {
+            copyToClipboard(state.currentSessionCode);
+        }
+
+        function handleJoinSession() {
+            const input = document.getElementById('joinSessionInput');
+            const code = input.value.trim().toUpperCase();
+            if (!code) {
+                showToast('กรุณาระบุรหัสเซสชันที่ต้องการ', 'warning');
+                return;
+            }
+
+            state.currentSessionCode = code;
+            input.value = '';
+            
+            // Update URL query string seamlessly
+            const newUrl = `${window.location.pathname}?session=${code}`;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+
+            closeShareModal();
+            loadFromLocalStorage();
+            renderApp();
+            
+            lastRemoteFingerprint = '';
+            loadWorkspaceFromSheet(true);
+
+            showToast(`สลับไปที่เซสชัน ${code} เรียบร้อย`, 'success');
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('คัดลอกลงคลิปบอร์ดแล้ว', 'success');
+            } catch (err) {
+                showToast('ไม่สามารถคัดลอกได้', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Room Modals Add/Edit/Delete
+        function openAddRoomModal() {
+            document.getElementById('modalTitle').textContent = 'เพิ่มห้องใหม่แบบกำหนดเอง';
+            document.getElementById('formRoomId').value = '';
+            document.getElementById('formRoomName').value = '';
+            document.getElementById('formRoomLocation').value = '';
+            document.getElementById('formRoomMax').value = '50';
+            document.getElementById('formRoomCurrent').value = '0';
+            document.getElementById('roomModal').classList.remove('hidden');
+        }
+
+        function openEditRoomModal(roomId) {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (!room) return;
+
+            document.getElementById('modalTitle').textContent = 'แก้ไขข้อมูลห้อง';
+            document.getElementById('formRoomId').value = room.id;
+            document.getElementById('formRoomName').value = room.name;
+            document.getElementById('formRoomLocation').value = room.location || '';
+            document.getElementById('formRoomMax').value = room.maxCapacity;
+            document.getElementById('formRoomCurrent').value = room.currentOccupancy;
+            document.getElementById('roomModal').classList.remove('hidden');
+        }
+
+        function closeRoomModal() {
+            document.getElementById('roomModal').classList.add('hidden');
+        }
+
+        function handleSaveRoom(e) {
+            e.preventDefault();
+            const id = document.getElementById('formRoomId').value;
+            const name = document.getElementById('formRoomName').value.trim();
+            const location = document.getElementById('formRoomLocation').value.trim();
+            const maxCap = parseInt(document.getElementById('formRoomMax').value, 10);
+            const currentOcc = parseInt(document.getElementById('formRoomCurrent').value, 10);
+
+            if (id) {
+                const room = state.rooms.find(r => r.id === id);
+                if (room) {
+                    room.name = name;
+                    room.location = location;
+                    room.maxCapacity = maxCap;
+                    room.currentOccupancy = Math.min(currentOcc, maxCap);
+                    logActivity(room.id, 'แก้ไขข้อมูลห้อง', `ปรับชื่อ ${name} / ความจุ ${maxCap} คน`);
+                    showToast(`อัปเดตข้อมูล ${name} เรียบร้อย`, 'success');
+                }
+            } else {
+                const newRoom = {
+                    id: 'room-' + Date.now(),
+                    name: name,
+                    location: location,
+                    currentOccupancy: currentOcc,
+                    maxCapacity: maxCap
+                };
+                state.rooms.push(newRoom);
+                logActivity(newRoom.id, 'เพิ่มห้องใหม่', `สร้างห้อง ${name} ความจุ ${maxCap} คน`);
+                showToast(`เพิ่มห้อง ${name} เรียบร้อย`, 'success');
+            }
+
+            closeRoomModal();
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        function confirmDeleteRoom(roomId) {
+            const room = state.rooms.find(r => r.id === roomId);
+            if (!room) return;
+
+            roomToDeleteId = roomId;
+            document.getElementById('deleteModalMessage').textContent = `คุณแน่ใจหรือไม่ว่าต้องการลบห้อง "${room.name}"?`;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            roomToDeleteId = null;
+            document.getElementById('deleteModal').classList.add('hidden');
+        }
+
+        function executeDeleteRoom() {
+            if (!roomToDeleteId) return;
+            const room = state.rooms.find(r => r.id === roomToDeleteId);
+            const roomName = room ? room.name : '';
+
+            state.rooms = state.rooms.filter(r => r.id !== roomToDeleteId);
+            
+            if (state.selectedRoomId === roomToDeleteId && state.rooms.length > 0) {
+                state.selectedRoomId = state.rooms[0].id;
+            }
+
+            closeDeleteModal();
+            logActivity('system', 'ลบห้อง', `ลบห้อง ${roomName} ออกจากระบบ`);
+            showToast(`ลบห้อง ${roomName} เรียบร้อยแล้ว`, 'info');
+            renderApp();
+            saveWorkspaceToGoogleSheets();
+        }
+
+        function filterRooms() {
+            renderDashboardCards();
+        }
+
+        function setFilter(filterType) {
+            state.currentFilter = filterType;
+            
+            const btnAll = document.getElementById('filterAllBtn');
+            const btnAvail = document.getElementById('filterAvailableBtn');
+            const btnFull = document.getElementById('filterFullBtn');
+
+            [btnAll, btnAvail, btnFull].forEach(btn => {
+                btn.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition whitespace-nowrap";
+            });
+
+            if (filterType === 'all') btnAll.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white transition whitespace-nowrap";
+            if (filterType === 'available') btnAvail.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 text-white transition whitespace-nowrap";
+            if (filterType === 'full') btnFull.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white transition whitespace-nowrap";
+
+            renderDashboardCards();
+        }
+
+        function switchView(viewName, roomId = null) {
+            state.activeView = viewName;
+            if (roomId) state.selectedRoomId = roomId;
+
+            const views = ['dashboardView', 'detailView', 'tvView', 'logView', 'kioskView'];
+            views.forEach(v => document.getElementById(v).classList.add('hidden'));
+
+            ['navDashBtn', 'navTvBtn', 'navLogBtn'].forEach(btn => {
+                document.getElementById(btn).className = "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition";
+            });
+
+            if (viewName === 'dashboard') {
+                document.getElementById('dashboardView').classList.remove('hidden');
+                document.getElementById('navDashBtn').className = "px-3 py-1.5 rounded-lg text-xs font-medium transition bg-indigo-600 text-white shadow-sm";
+            } else if (viewName === 'detail') {
+                document.getElementById('detailView').classList.remove('hidden');
+                renderDetailView();
+            } else if (viewName === 'tv') {
+                document.getElementById('tvView').classList.remove('hidden');
+                document.getElementById('navTvBtn').className = "px-3 py-1.5 rounded-lg text-xs font-medium transition bg-indigo-600 text-white shadow-sm";
+                renderTVView();
+            } else if (viewName === 'log') {
+                document.getElementById('logView').classList.remove('hidden');
+                document.getElementById('navLogBtn').className = "px-3 py-1.5 rounded-lg text-xs font-medium transition bg-indigo-600 text-white shadow-sm";
+                renderLogsTable();
+            } else if (viewName === 'kiosk') {
+                document.getElementById('kioskView').classList.remove('hidden');
+                renderKioskView();
+            }
+        }
+
+        function updateLiveClocks() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
+            const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            const tvTime = document.getElementById('tvClockTime');
+            const tvDate = document.getElementById('tvClockDate');
+            const kioskClock = document.getElementById('kioskClock');
+
+            if (tvTime) tvTime.textContent = timeStr;
+            if (tvDate) tvDate.textContent = dateStr;
+            if (kioskClock) kioskClock.textContent = `${dateStr} ${timeStr}`;
+        }
+
+        function toggleAudio() {
+            state.audioEnabled = !state.audioEnabled;
+            const btn = document.getElementById('soundToggleBtn');
+            if (state.audioEnabled) {
+                btn.className = "w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 flex items-center justify-center transition";
+                btn.innerHTML = '<i class="fa-solid fa-volume-high text-xs sm:text-sm"></i>';
+                showToast('เปิดเสียงเอฟเฟกต์แล้ว', 'info');
+            } else {
+                btn.className = "w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-500 flex items-center justify-center transition";
+                btn.innerHTML = '<i class="fa-solid fa-volume-xmark text-xs sm:text-sm"></i>';
+                showToast('ปิดเสียงเอฟเฟกต์แล้ว', 'info');
+            }
+        }
+
+        function playSound(type) {
+            if (!state.audioEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'in') {
+                    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(659.25, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } else if (type === 'out') {
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(349.23, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } else if (type === 'full') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+                if (state.activeView === 'detail' || state.activeView === 'kiosk') {
+                    if (e.key === 'ArrowUp' || e.key === '+') {
+                        e.preventDefault();
+                        if (state.selectedRoomId) changeOccupancy(state.selectedRoomId, 1);
+                    } else if (e.key === 'ArrowDown' || e.key === '-') {
+                        e.preventDefault();
+                        if (state.selectedRoomId) changeOccupancy(state.selectedRoomId, -1);
+                    }
+                }
+
+                if (e.key === 'Escape') {
+                    switchView('dashboard');
+                    closeRoomModal();
+                    closeDeleteModal();
+                    closeShareModal();
+                }
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-900 border-indigo-500/50 text-indigo-300';
+            let icon = 'fa-circle-info text-indigo-400';
+
+            if (type === 'success') {
+                bgClass = 'bg-slate-900 border-emerald-500/50 text-emerald-300';
+                icon = 'fa-circle-check text-emerald-400';
+            } else if (type === 'warning') {
+                bgClass = 'bg-slate-900 border-amber-500/50 text-amber-300';
+                icon = 'fa-triangle-exclamation text-amber-400';
+            } else if (type === 'error') {
+                bgClass = 'bg-slate-900 border-rose-500/50 text-rose-300';
+                icon = 'fa-circle-exclamation text-rose-400';
+            }
+
+            toast.className = `p-3.5 rounded-2xl border ${bgClass} shadow-2xl flex items-center space-x-3 text-xs font-semibold pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0 max-w-sm`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i><span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Expose functions to global window scope for inline onclick listeners
+        window.switchView = switchView;
+        window.changeOccupancy = changeOccupancy;
+        window.adjustMaxCapacity = adjustMaxCapacity;
+        window.quickAddRoom = quickAddRoom;
+        window.quickRemoveLastRoom = quickRemoveLastRoom;
+        window.openAddRoomModal = openAddRoomModal;
+        window.openEditRoomModal = openEditRoomModal;
+        window.closeRoomModal = closeRoomModal;
+        window.handleSaveRoom = handleSaveRoom;
+        window.confirmDeleteRoom = confirmDeleteRoom;
+        window.closeDeleteModal = closeDeleteModal;
+        window.executeDeleteRoom = executeDeleteRoom;
+        window.resetOccupancy = resetOccupancy;
+        window.openSingleKioskView = openSingleKioskView;
+        window.openShareModal = openShareModal;
+        window.closeShareModal = closeShareModal;
+        window.copyShareLink = copyShareLink;
+        window.copySessionCode = copySessionCode;
+        window.handleJoinSession = handleJoinSession;
+        window.filterRooms = filterRooms;
+        window.setFilter = setFilter;
+        window.toggleAudio = toggleAudio;
+        window.exportLogToCSV = exportLogToCSV;
+        window.clearActivityLog = clearActivityLog;
+        window.switchDetailRoom = switchDetailRoom;
+    </script>
+</body>
+</html>
